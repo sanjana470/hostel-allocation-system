@@ -1,1 +1,1 @@
-# College Hostel Allocation System
+# hostel-allocation-system
