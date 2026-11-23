@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Dashboard</title>
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+  <nav>
+  <strong>Hostel Allocation System</strong>
+  <div>
+    <a href="admin-dashboard.html">Dashboard</a>
+    <a href="hostels.html">Hostels</a>
+    <a href="rooms.html">Rooms</a>
+    <a href="students.html">Students</a>
+    <a href="allocate-room.html">Allocate</a>
+    <a href="payments.html">Payments</a>
+    <a href="#" onclick="logout()">Logout</a>
+
+  </div>
+</nav>
+
+  <div class="container">
+    <div class="card">
+      <h2>Hostel Occupancy</h2>
+      <table id="occTable"></table>
+    </div>
+    <div class="card">
+      <h2>Vacant Rooms</h2>
+      <table id="vacantTable"></table>
+    </div>
+    <div class="card">
+      <h2>Current Residents</h2>
+      <table id="residentTable"></table>
+    </div>
+  </div>
+
+  <script src="../js/api.js"></script>
+  <script>
+    requireLogin(['Admin', 'Warden']);
+
+    function fillTable(id, columns, rows) {
+      const t = document.getElementById(id);
+      if (rows.length === 0) { t.innerHTML = '<tr><td>No data</td></tr>'; return; }
+      t.innerHTML =
+        '<tr>' + columns.map(c => `<th>${c[1]}</th>`).join('') + '</tr>' +
+        rows.map(r => '<tr>' + columns.map(c => `<td>${r[c[0]] ?? ''}</td>`).join('') + '</tr>').join('');
+    }
+
+    async function load() {
+      try {
+        fillTable('occTable',
+          [['hostel_name','Hostel'],['hostel_type','Type'],['total_rooms','Rooms'],['total_beds','Beds'],['occupied_beds','Occupied'],['vacant_beds','Vacant'],['occupancy_percent','Occupancy %']],
+          await apiCall('/hostels'));
+        fillTable('vacantTable',
+          [['hostel_name','Hostel'],['room_number','Room'],['floor','Floor'],['vacancies','Free Beds'],['fee_per_semester','Fee']],
+          await apiCall('/rooms/vacant'));
+        fillTable('residentTable',
+          [['student_name','Student'],['course','Course'],['hostel_name','Hostel'],['room_number','Room'],['allocation_date','Since']],
+          await apiCall('/allocations'));
+      } catch (err) { alert(err.message); }
+    }
+    load();
+  </script>
+</body>
+</html>

@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Allocate Room</title>
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+  <nav>
+    <strong>Hostel Allocation System</strong>
+    <div>
+      <a href="admin-dashboard.html">Dashboard</a>
+      <a href="hostels.html">Hostels</a>
+      <a href="rooms.html">Rooms</a>
+      <a href="students.html">Students</a>
+      <a href="allocate-room.html">Allocate</a>
+      <a href="payments.html">Payments</a>
+      <a href="#" onclick="logout()">Logout</a>
+    </div>
+  </nav>
+
+  <div class="container">
+    <div class="card">
+      <h2>Allocate a Room</h2>
+      <select id="studentSelect"></select>
+      <select id="roomSelect"></select>
+      <button onclick="allocate()">Allocate</button>
+      <div id="msg" class="msg"></div>
+    </div>
+
+    <div class="card">
+      <h2>Current Residents</h2>
+      <table id="residentTable"></table>
+    </div>
+
+    <div class="card">
+      <h2>Allocation History</h2>
+      <table id="historyTable"></table>
+    </div>
+  </div>
+
+  <script src="../js/api.js"></script>
+  <script>
+    requireLogin(['Admin', 'Warden']);
+    let vacantRooms = [];
+
+    async function load() {
+      try {
+        const students = await apiCall('/students');
+        vacantRooms = await apiCall('/rooms/vacant');
+        const residents = await apiCall('/allocations');
+        const history = await apiCall('/allocations/history');
+
+        document.getElementById('studentSelect').innerHTML =
+          '<option value="">-- Select student --</option>' +
+          students.map(s => `<option value="${s.student_id}">${s.name} (${s.gender})</option>`).join('');
+
+        document.getElementById('roomSelect').innerHTML =
+          '<option value="">-- Select room --</option>' +
+          vacantRooms.map(r => `<option value="${r.room_id}">${r.hostel_name} - Room ${r.room_number} (${r.vacancies} free)</option>`).join('');
+
+        document.getElementById('residentTable').innerHTML =
+          '<tr><th>Student</th><th>Hostel</th><th>Room</th><th>Since</th><th>Action</th></tr>' +
+          residents.map(a => `<tr>
+            <td>${a.student_name}</td><td>${a.hostel_name}</td><td>${a.room_number}</td><td>${a.allocation_date}</td>
+            <td><button onclick="transfer(${a.student_id})">Transfer</button>
+                <button class="danger" onclick="vacate(${a.student_id})">Vacate</button></td>
+          </tr>`).join('');
+
+        document.getElementById('historyTable').innerHTML =
+          '<tr><th>ID</th><th>Student</th><th>Hostel</th><th>Room</th><th>From</th><th>To</th><th>Status</th><th>Action</th></tr>' +
+          history.map(h => `<tr>
+            <td>${h.allocation_id}</td><td>${h.student_name}</td><td>${h.hostel_name}</td><td>${h.room_number}</td>
+            <td>${h.allocation_date}</td><td>${h.checkout_date ?? ''}</td><td>${h.status}</td>
+            <td>${h.status === 'Vacated'
+                ? `<button class="danger" onclick="removeRecord(${h.allocation_id})">Delete</button>` : ''}</td>
+          </tr>`).join('');
+      } catch (err) { showMsg('msg', err.message, false); }
+    }
+
+    async function allocate() {
+      const student_id = document.getElementById('studentSelect').value;
+      const room_id = document.getElementById('roomSelect').value;
+      if (!student_id || !room_id) return showMsg('msg', 'Select a student and a room', false);
+      try {
+        const data = await apiCall('/allocations', 'POST', { student_id, room_id });
+        showMsg('msg', data.message, true); load();
+      } catch (err) { showMsg('msg', err.message, false); }
+    }
+
+    async function transfer(student_id) {
+      const list = vacantRooms.map(r => r.room_id + ' = ' + r.hostel_name + ' Room ' + r.room_number).join('\n');
+      const room_id = prompt('Enter the new Room ID:\n' + list);
+      if (!room_id) return;
+      try {
+        const data = await apiCall('/allocations/transfer', 'POST', { student_id, room_id });
+        showMsg('msg', data.message, true); load();
+      } catch (err) { showMsg('msg', err.message, false); }
+    }
+
+    async function vacate(student_id) {
+      if (!confirm('Vacate this student?')) return;
+      try {
+        const data = await apiCall('/allocations/deallocate', 'POST', { student_id });
+        showMsg('msg', data.message, true); load();
+      } catch (err) { showMsg('msg', err.message, false); }
+    }
+
+    async function removeRecord(id) {
+      if (!confirm('Delete this history record?')) return;
+      try {
+        const data = await apiCall('/allocations/' + id, 'DELETE');
+        showMsg('msg', data.message, true); load();
+      } catch (err) { showMsg('msg', err.message, false); }
+    }
+
+    load();
+  </script>
+</body>
+</html>

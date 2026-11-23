@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Students</title>
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+  <nav>
+    <strong>Hostel Allocation System</strong>
+    <div>
+      <a href="admin-dashboard.html">Dashboard</a>
+      <a href="students.html">Students</a>
+      <a href="allocate-room.html">Allocate</a>
+      <a href="payments.html">Payments</a>
+      <a href="#" onclick="logout()">Logout</a>
+    </div>
+  </nav>
+
+  <div class="container">
+    <div class="card">
+      <h2 id="formTitle">Register Student (INSERT)</h2>
+      <input id="name" placeholder="Full name">
+      <select id="gender"><option value="M">Male</option><option value="F">Female</option></select>
+      <input id="dob" type="date">
+      <input id="phone" placeholder="Phone">
+      <input id="email" placeholder="Email">
+      <input id="course" placeholder="Course">
+      <input id="year" type="number" min="1" max="5" placeholder="Year">
+      <input id="address" placeholder="Address">
+      <input id="guardian_name" placeholder="Guardian name">
+      <input id="guardian_phone" placeholder="Guardian phone">
+      <br>
+      <button id="saveBtn" onclick="saveStudent()">Register</button>
+      <button id="cancelBtn" onclick="cancelEdit()" style="display:none;background:#777">Cancel</button>
+      <div id="msg" class="msg"></div>
+    </div>
+
+    <div class="card">
+      <h2>All Students</h2>
+      <table id="studentTable"></table>
+    </div>
+  </div>
+
+  <script src="../js/api.js"></script>
+  <script>
+    requireLogin(['Admin', 'Warden']);
+
+    const fields = ['name','gender','dob','phone','email','course','year','address','guardian_name','guardian_phone'];
+    let students = [];
+    let editingId = null;
+
+    async function loadStudents() {
+      try {
+        students = await apiCall('/students');
+        document.getElementById('studentTable').innerHTML =
+          '<tr><th>ID</th><th>Name</th><th>Gender</th><th>Course</th><th>Year</th><th>Phone</th><th>Action</th></tr>' +
+          students.map(s => `<tr>
+            <td>${s.student_id}</td><td>${s.name}</td><td>${s.gender}</td>
+            <td>${s.course}</td><td>${s.year}</td><td>${s.phone}</td>
+            <td>
+              <button onclick="editStudent(${s.student_id})">Edit</button>
+              <button class="danger" onclick="removeStudent(${s.student_id})">Delete</button>
+            </td>
+          </tr>`).join('');
+      } catch (err) { showMsg('msg', err.message, false); }
+    }
+
+    // UPDATE step 1: load the student into the form
+    function editStudent(id) {
+      const s = students.find(x => x.student_id === id);
+      fields.forEach(f => document.getElementById(f).value = s[f] ?? '');
+      editingId = id;
+      document.getElementById('gender').disabled = true;
+      document.getElementById('dob').disabled = true;
+      document.getElementById('formTitle').textContent = 'Edit Student (UPDATE) - ID ' + id;
+      document.getElementById('saveBtn').textContent = 'Update';
+      document.getElementById('cancelBtn').style.display = 'inline-block';
+      window.scrollTo(0, 0);
+    }
+
+    function cancelEdit() {
+      editingId = null;
+      fields.forEach(f => { if (f !== 'gender') document.getElementById(f).value = ''; });
+      document.getElementById('gender').disabled = false;
+      document.getElementById('dob').disabled = false;
+      document.getElementById('formTitle').textContent = 'Register Student (INSERT)';
+      document.getElementById('saveBtn').textContent = 'Register';
+      document.getElementById('cancelBtn').style.display = 'none';
+    }
+
+    // INSERT or UPDATE depending on mode
+    async function saveStudent() {
+      const body = {};
+      fields.forEach(f => body[f] = document.getElementById(f).value);
+      try {
+        const data = editingId
+          ? await apiCall('/students/' + editingId, 'PUT', body)
+          : await apiCall('/students', 'POST', body);
+        showMsg('msg', data.message, true);
+        cancelEdit();
+        loadStudents();
+      } catch (err) { showMsg('msg', err.message, false); }
+    }
+
+    // DELETE
+    async function removeStudent(id) {
+      if (!confirm('Delete this student?')) return;
+      try {
+        const data = await apiCall('/students/' + id, 'DELETE');
+        showMsg('msg', data.message, true);
+        loadStudents();
+      } catch (err) { showMsg('msg', err.message, false); }
+    }
+
+    loadStudents();
+  </script>
+</body>
+</html>

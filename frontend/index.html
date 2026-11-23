@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Hostel Allocation System - Login</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="card login-box">
+    <h1>Hostel Login</h1>
+    <input id="username" placeholder="Username">
+    <input id="password" type="password" placeholder="Password">
+    <button onclick="login()">Login</button>
+    <div id="msg" class="msg"></div>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script>
+    async function login() {
+      try {
+        const data = await apiCall('/auth/login', 'POST', {
+          username: document.getElementById('username').value,
+          password: document.getElementById('password').value
+        });
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('role', data.role);
+        localStorage.setItem('username', data.username);
+        if (data.student_id) localStorage.setItem('student_id', data.student_id);
+
+        if (data.role === 'Student') window.location.href = 'pages/student-dashboard.html';
+        else window.location.href = 'pages/admin-dashboard.html';
+      } catch (err) {
+        showMsg('msg', err.message, false);
+      }
+    }
+  </script>
+</body>
+</html>

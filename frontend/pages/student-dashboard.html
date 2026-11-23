@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Student Dashboard</title>
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+  <nav>
+    <strong>Student Portal</strong>
+    <a href="#" onclick="logout()">Logout</a>
+  </nav>
+
+  <div class="container">
+    <div class="card">
+      <h2>My Room</h2>
+      <div id="current"></div>
+    </div>
+    <div class="card">
+      <h2>My Payments</h2>
+      <table id="payTable"></table>
+    </div>
+    <div class="card">
+      <h2>My Allocation History</h2>
+      <table id="histTable"></table>
+    </div>
+  </div>
+
+  <script src="../js/api.js"></script>
+  <script>
+    requireLogin(['Student']);
+
+    function fillTable(id, cols, rows) {
+      const t = document.getElementById(id);
+      if (rows.length === 0) { t.innerHTML = '<tr><td>No records</td></tr>'; return; }
+      t.innerHTML = '<tr>' + cols.map(c => `<th>${c[1]}</th>`).join('') + '</tr>' +
+        rows.map(r => '<tr>' + cols.map(c => `<td>${r[c[0]] ?? ''}</td>`).join('') + '</tr>').join('');
+    }
+
+    async function load() {
+      try {
+        const d = await apiCall('/me');
+        document.getElementById('current').innerHTML = d.current
+          ? `<p><b>Hostel:</b> ${d.current.hostel_name}</p>
+             <p><b>Room:</b> ${d.current.room_number} (Floor ${d.current.floor})</p>
+             <p><b>Fee per semester:</b> ${d.current.fee_per_semester}</p>
+             <p><b>Since:</b> ${d.current.allocation_date}</p>`
+          : '<p>You have no room allocated yet.</p>';
+        fillTable('payTable',
+          [['semester','Semester'],['amount','Amount'],['payment_date','Date'],['payment_mode','Mode'],['status','Status']],
+          d.payments);
+        fillTable('histTable',
+          [['hostel_name','Hostel'],['room_number','Room'],['allocation_date','From'],['checkout_date','To'],['status','Status']],
+          d.history);
+      } catch (err) { alert(err.message); }
+    }
+    load();
+  </script>
+</body>
+</html>

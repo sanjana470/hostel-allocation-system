@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Hostels</title>
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+  <nav>
+    <strong>Hostel Allocation System</strong>
+    <div>
+      <a href="admin-dashboard.html">Dashboard</a>
+      <a href="hostels.html">Hostels</a>
+      <a href="rooms.html">Rooms</a>
+      <a href="students.html">Students</a>
+      <a href="allocate-room.html">Allocate</a>
+      <a href="payments.html">Payments</a>
+      <a href="#" onclick="logout()">Logout</a>
+    </div>
+  </nav>
+
+  <div class="container">
+    <div class="card">
+      <h2>Add Warden</h2>
+      <input id="wname" placeholder="Warden name">
+      <input id="wphone" placeholder="Phone">
+      <input id="wemail" placeholder="Email">
+      <button onclick="addWarden()">Add Warden</button>
+      <div id="wmsg" class="msg"></div>
+    </div>
+
+    <div class="card">
+      <h2>All Wardens</h2>
+      <table id="wardenTable"></table>
+    </div>
+
+    <div class="card">
+      <h2>Add Hostel</h2>
+      <input id="hname" placeholder="Hostel name">
+      <select id="htype"><option>Boys</option><option>Girls</option></select>
+      <input id="hfloors" type="number" min="1" placeholder="Total floors">
+      <select id="hwarden"></select>
+      <button onclick="addHostel()">Add Hostel</button>
+      <div id="hmsg" class="msg"></div>
+    </div>
+
+    <div class="card">
+      <h2>All Hostels</h2>
+      <table id="hostelTable"></table>
+    </div>
+  </div>
+
+  <script src="../js/api.js"></script>
+  <script>
+    requireLogin(['Admin', 'Warden']);
+    let wardens = [], hostels = [];
+
+    async function load() {
+      try {
+        wardens = await apiCall('/wardens');
+        hostels = await apiCall('/hostels');
+
+        document.getElementById('hwarden').innerHTML =
+          '<option value="">-- Select warden --</option>' +
+          wardens.map(w => `<option value="${w.warden_id}">${w.name}</option>`).join('');
+
+        document.getElementById('wardenTable').innerHTML =
+          '<tr><th>ID</th><th>Name</th><th>Phone</th><th>Email</th><th>Action</th></tr>' +
+          wardens.map(w => `<tr><td>${w.warden_id}</td><td>${w.name}</td><td>${w.phone}</td><td>${w.email}</td>
+            <td><button onclick="editWarden(${w.warden_id})">Edit</button>
+                <button class="danger" onclick="deleteWarden(${w.warden_id})">Delete</button></td></tr>`).join('');
+
+        document.getElementById('hostelTable').innerHTML =
+          '<tr><th>ID</th><th>Hostel</th><th>Type</th><th>Floors</th><th>Warden</th><th>Rooms</th><th>Beds</th><th>Occupied</th><th>Action</th></tr>' +
+          hostels.map(h => {
+            const w = wardens.find(x => x.warden_id === h.warden_id);
+            return `<tr><td>${h.hostel_id}</td><td>${h.hostel_name}</td><td>${h.hostel_type}</td>
+              <td>${h.total_floors}</td><td>${w ? w.name : ''}</td>
+              <td>${h.total_rooms}</td><td>${h.total_beds}</td><td>${h.occupied_beds}</td>
+              <td><button onclick="editHostel(${h.hostel_id})">Edit</button>
+                  <button class="danger" onclick="deleteHostel(${h.hostel_id})">Delete</button></td></tr>`;
+          }).join('');
+      } catch (err) { showMsg('hmsg', err.message, false); }
+    }
+
+    async function addWarden() {
+      try {
+        const d = await apiCall('/wardens', 'POST', {
+          name: document.getElementById('wname').value,
+          phone: document.getElementById('wphone').value,
+          email: document.getElementById('wemail').value
+        });
+        showMsg('wmsg', d.message, true);
+        ['wname','wphone','wemail'].forEach(i => document.getElementById(i).value = '');
+        load();
+      } catch (err) { showMsg('wmsg', err.message, false); }
+    }
+
+    async function editWarden(id) {
+      const w = wardens.find(x => x.warden_id === id);
+      const name = prompt('Warden name:', w.name); if (name === null) return;
+      const phone = prompt('Phone:', w.phone); if (phone === null) return;
+      const email = prompt('Email:', w.email); if (email === null) return;
+      try {
+        const d = await apiCall('/wardens/' + id, 'PUT', { name, phone, email });
+        showMsg('wmsg', d.message, true); load();
+      } catch (err) { showMsg('wmsg', err.message, false); }
+    }
+
+    async function deleteWarden(id) {
+      if (!confirm('Delete this warden?')) return;
+      try {
+        const d = await apiCall('/wardens/' + id, 'DELETE');
+        showMsg('wmsg', d.message, true); load();
+      } catch (err) { showMsg('wmsg', err.message, false); }
+    }
+
+    async function addHostel() {
+      const warden_id = document.getElementById('hwarden').value;
+      if (!warden_id) return showMsg('hmsg', 'Select a warden', false);
+      try {
+        const d = await apiCall('/hostels', 'POST', {
+          hostel_name: document.getElementById('hname').value,
+          type: document.getElementById('htype').value,
+          total_floors: document.getElementById('hfloors').value,
+          warden_id
+        });
+        showMsg('hmsg', d.message, true);
+        document.getElementById('hname').value = '';
+        load();
+      } catch (err) { showMsg('hmsg', err.message, false); }
+    }
+
+    async function editHostel(id) {
+      const h = hostels.find(x => x.hostel_id === id);
+      const hostel_name = prompt('Hostel name:', h.hostel_name); if (hostel_name === null) return;
+      const total_floors = prompt('Total floors:', h.total_floors); if (total_floors === null) return;
+      const list = wardens.map(w => w.warden_id + ' = ' + w.name).join('\n');
+      const warden_id = prompt('Warden ID:\n' + list, h.warden_id); if (warden_id === null) return;
+      try {
+        const d = await apiCall('/hostels/' + id, 'PUT', { hostel_name, total_floors, warden_id });
+        showMsg('hmsg', d.message, true); load();
+      } catch (err) { showMsg('hmsg', err.message, false); }
+    }
+
+    async function deleteHostel(id) {
+      if (!confirm('Delete this hostel?')) return;
+      try {
+        const d = await apiCall('/hostels/' + id, 'DELETE');
+        showMsg('hmsg', d.message, true); load();
+      } catch (err) { showMsg('hmsg', err.message, false); }
+    }
+
+    load();
+  </script>
+</body>
+</html>

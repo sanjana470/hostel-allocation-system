@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Payments</title>
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+  <nav>
+    <strong>Hostel Allocation System</strong>
+    <div>
+      <a href="admin-dashboard.html">Dashboard</a>
+      <a href="hostels.html">Hostels</a>
+      <a href="rooms.html">Rooms</a>
+      <a href="students.html">Students</a>
+      <a href="allocate-room.html">Allocate</a>
+      <a href="payments.html">Payments</a>
+      <a href="#" onclick="logout()">Logout</a>
+    </div>
+  </nav>
+
+  <div class="container">
+    <div class="card">
+      <h2>Record Payment</h2>
+      <select id="allocSelect"></select>
+      <input id="amount" type="number" placeholder="Amount">
+      <select id="mode"><option>UPI</option><option>Cash</option><option>Card</option></select>
+      <input id="semester" placeholder="Semester (e.g. Sem 1)">
+      <button onclick="pay()">Save Payment</button>
+      <div id="msg" class="msg"></div>
+    </div>
+
+    <div class="card">
+      <h2>All Payments</h2>
+      <table id="payTable"></table>
+    </div>
+  </div>
+
+  <script src="../js/api.js"></script>
+  <script>
+    requireLogin(['Admin', 'Warden']);
+    let payments = [];
+
+    async function load() {
+      try {
+        const residents = await apiCall('/allocations');
+        payments = await apiCall('/payments');
+
+        document.getElementById('allocSelect').innerHTML =
+          '<option value="">-- Select resident --</option>' +
+          residents.map(a => `<option value="${a.allocation_id}">${a.student_name} (${a.hostel_name} ${a.room_number})</option>`).join('');
+
+        document.getElementById('payTable').innerHTML =
+          '<tr><th>ID</th><th>Student</th><th>Amount</th><th>Date</th><th>Mode</th><th>Semester</th><th>Status</th><th>Action</th></tr>' +
+          payments.map(p => `<tr>
+            <td>${p.payment_id}</td><td>${p.student_name}</td><td>${p.amount}</td>
+            <td>${p.payment_date}</td><td>${p.payment_mode}</td><td>${p.semester}</td><td>${p.status}</td>
+            <td><button onclick="editPayment(${p.payment_id})">Edit</button>
+                <button class="danger" onclick="deletePayment(${p.payment_id})">Delete</button></td>
+          </tr>`).join('');
+      } catch (err) { showMsg('msg', err.message, false); }
+    }
+
+    async function pay() {
+      const allocation_id = document.getElementById('allocSelect').value;
+      const amount = document.getElementById('amount').value;
+      const payment_mode = document.getElementById('mode').value;
+      const semester = document.getElementById('semester').value;
+      if (!allocation_id || !amount || !semester) return showMsg('msg', 'Fill all fields', false);
+      try {
+        const data = await apiCall('/payments', 'POST', { allocation_id, amount, payment_mode, semester });
+        showMsg('msg', data.message, true);
+        document.getElementById('amount').value = '';
+        load();
+      } catch (err) { showMsg('msg', err.message, false); }
+    }
+
+    async function editPayment(id) {
+      const p = payments.find(x => x.payment_id === id);
+      const amount = prompt('Amount:', p.amount); if (amount === null) return;
+      const payment_mode = prompt('Mode (Cash / UPI / Card):', p.payment_mode); if (payment_mode === null) return;
+      const semester = prompt('Semester:', p.semester); if (semester === null) return;
+      const status = prompt('Status (Paid / Pending):', p.status); if (status === null) return;
+      try {
+        const data = await apiCall('/payments/' + id, 'PUT', { amount, payment_mode, semester, status });
+        showMsg('msg', data.message, true); load();
+      } catch (err) { showMsg('msg', err.message, false); }
+    }
+
+    async function deletePayment(id) {
+      if (!confirm('Delete this payment?')) return;
+      try {
+        const data = await apiCall('/payments/' + id, 'DELETE');
+        showMsg('msg', data.message, true); load();
+      } catch (err) { showMsg('msg', err.message, false); }
+    }
+
+    load();
+  </script>
+</body>
+</html>

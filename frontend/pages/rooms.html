@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Rooms</title>
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+  <nav>
+    <strong>Hostel Allocation System</strong>
+    <div>
+      <a href="admin-dashboard.html">Dashboard</a>
+      <a href="hostels.html">Hostels</a>
+      <a href="rooms.html">Rooms</a>
+      <a href="students.html">Students</a>
+      <a href="allocate-room.html">Allocate</a>
+      <a href="payments.html">Payments</a>
+      <a href="#" onclick="logout()">Logout</a>
+    </div>
+  </nav>
+
+  <div class="container">
+    <div class="card">
+      <h2>Add Room</h2>
+      <select id="rhostel"></select>
+      <input id="rnumber" placeholder="Room number (e.g. 101)">
+      <input id="rfloor" type="number" min="1" placeholder="Floor">
+      <input id="rcap" type="number" min="1" max="6" placeholder="Capacity (1-6)">
+      <input id="rfee" type="number" min="0" placeholder="Fee per semester">
+      <button onclick="addRoom()">Add Room</button>
+      <div id="msg" class="msg"></div>
+    </div>
+
+    <div class="card">
+      <h2>All Rooms</h2>
+      <table id="roomTable"></table>
+    </div>
+  </div>
+
+  <script src="../js/api.js"></script>
+  <script>
+    requireLogin(['Admin', 'Warden']);
+    let rooms = [];
+
+    async function load() {
+      try {
+        const hostels = await apiCall('/hostels');
+        document.getElementById('rhostel').innerHTML =
+          '<option value="">-- Select hostel --</option>' +
+          hostels.map(h => `<option value="${h.hostel_id}">${h.hostel_name} (${h.hostel_type})</option>`).join('');
+
+        rooms = await apiCall('/rooms');
+        document.getElementById('roomTable').innerHTML =
+          '<tr><th>Hostel</th><th>Room</th><th>Floor</th><th>Capacity</th><th>Occupied</th><th>Fee</th><th>Status</th><th>Action</th></tr>' +
+          rooms.map(r => `<tr><td>${r.hostel_name}</td><td>${r.room_number}</td><td>${r.floor}</td>
+            <td>${r.capacity}</td><td>${r.occupied_count}</td><td>${r.fee_per_semester}</td><td>${r.status}</td>
+            <td><button onclick="editRoom(${r.room_id})">Edit</button>
+                <button class="danger" onclick="deleteRoom(${r.room_id})">Delete</button></td></tr>`).join('');
+      } catch (err) { showMsg('msg', err.message, false); }
+    }
+
+    async function addRoom() {
+      const hostel_id = document.getElementById('rhostel').value;
+      if (!hostel_id) return showMsg('msg', 'Select a hostel', false);
+      try {
+        const d = await apiCall('/rooms', 'POST', {
+          hostel_id,
+          room_number: document.getElementById('rnumber').value,
+          floor: document.getElementById('rfloor').value,
+          capacity: document.getElementById('rcap').value,
+          fee_per_semester: document.getElementById('rfee').value
+        });
+        showMsg('msg', d.message, true);
+        ['rnumber','rfloor','rcap','rfee'].forEach(i => document.getElementById(i).value = '');
+        load();
+      } catch (err) { showMsg('msg', err.message, false); }
+    }
+
+    async function editRoom(id) {
+      const r = rooms.find(x => x.room_id === id);
+      const room_number = prompt('Room number:', r.room_number); if (room_number === null) return;
+      const floor = prompt('Floor:', r.floor); if (floor === null) return;
+      const capacity = prompt('Capacity (1-6):', r.capacity); if (capacity === null) return;
+      const fee_per_semester = prompt('Fee per semester:', r.fee_per_semester); if (fee_per_semester === null) return;
+      try {
+        const d = await apiCall('/rooms/' + id, 'PUT', { room_number, floor, capacity, fee_per_semester });
+        showMsg('msg', d.message, true); load();
+      } catch (err) { showMsg('msg', err.message, false); }
+    }
+
+    async function deleteRoom(id) {
+      if (!confirm('Delete this room?')) return;
+      try {
+        const d = await apiCall('/rooms/' + id, 'DELETE');
+        showMsg('msg', d.message, true); load();
+      } catch (err) { showMsg('msg', err.message, false); }
+    }
+
+    load();
+  </script>
+</body>
+</html>
