@@ -18,6 +18,58 @@ async function canUse(req, student_id, room_id) {
   return true;
 }
 
+// A rule error is a normal "you can't do that" message, not a crash
+function ruleError(message) {
+  const e = new Error(message);
+  e.isRule = true;
+  return e;
+}
+
+// Replaces the old MySQL trigger + allocate_room procedure
+async function doAllocate(conn, student_id, room_id) {
+  const [s] = await conn.query('SELECT gender FROM Student WHERE student_id = ?', [student_id]);
+  if (s.length === 0) throw ruleError('Student not found');
+
+  const [r] = await conn.query(
+    `SELECT h.type, r.capacity, r.occupied_count, r.status
+       FROM Room r JOIN Hostel h ON r.hostel_id = h.hostel_id
+      WHERE r.room_id = ? FOR UPDATE`, [room_id]);
+  if (r.length === 0) throw ruleError('Room not found');
+
+  const gender = s[0].gender;
+  const { type, capacity, occupied_count, status } = r[0];
+
+  if (status === 'Maintenance') throw ruleError('Room is under maintenance');
+  if ((gender === 'M' && type !== 'Boys') || (gender === 'F' && type !== 'Girls')) {
+    throw ruleError('Student gender does not match hostel type');
+  }
+  if (occupied_count >= capacity) throw ruleError('Room is already full');
+
+  await conn.query(
+    'INSERT INTO Allocation (student_id, room_id, allocation_date) VALUES (?, ?, CURDATE())',
+    [student_id, room_id]);
+
+  const newCount = occupied_count + 1;
+  await conn.query('UPDATE Room SET occupied_count = ?, status = ? WHERE room_id = ?',
+    [newCount, newCount >= capacity ? 'Full' : 'Available', room_id]);
+}
+
+// Replaces the old MySQL trigger + deallocate_room procedure
+async function doVacate(conn, student_id) {
+  const [a] = await conn.query(
+    "SELECT allocation_id, room_id FROM Allocation WHERE student_id = ? AND status = 'Active' LIMIT 1 FOR UPDATE",
+    [student_id]);
+  if (a.length === 0) throw ruleError('Student has no active allocation');
+
+  await conn.query(
+    "UPDATE Allocation SET status = 'Vacated', checkout_date = CURDATE() WHERE allocation_id = ?",
+    [a[0].allocation_id]);
+  await conn.query(
+    "UPDATE Room SET occupied_count = occupied_count - 1, status = 'Available' WHERE room_id = ?",
+    [a[0].room_id]);
+  return a[0];
+}
+
 exports.getActive = async (req, res) => {
   try {
     let sql = `SELECT v.* FROM vw_active_allocations v
@@ -44,20 +96,36 @@ exports.getStudentHistory = async (req, res) => {
 
 exports.allocate = async (req, res) => {
   const { student_id, room_id } = req.body;
+  let conn;
   try {
     if (!(await canUse(req, student_id, room_id))) return res.status(403).json({ message: 'Not allowed for this student or room' });
-    await pool.query('CALL allocate_room(?, ?)', [student_id, room_id]);
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+    await doAllocate(conn, student_id, room_id);
+    await conn.commit();
     res.status(201).json({ message: 'Room allocated successfully' });
-  } catch (err) { handleError(res, err); }
+  } catch (err) {
+    if (conn) await conn.rollback();
+    if (err.isRule) return res.status(400).json({ message: err.message });
+    handleError(res, err);
+  } finally { if (conn) conn.release(); }
 };
 
 exports.deallocate = async (req, res) => {
   const { student_id } = req.body;
+  let conn;
   try {
     if (!(await canUse(req, student_id, null))) return res.status(403).json({ message: 'Not your student' });
-    await pool.query('CALL deallocate_room(?)', [student_id]);
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+    await doVacate(conn, student_id);
+    await conn.commit();
     res.json({ message: 'Room vacated successfully' });
-  } catch (err) { handleError(res, err); }
+  } catch (err) {
+    if (conn) await conn.rollback();
+    if (err.isRule) return res.status(400).json({ message: err.message });
+    handleError(res, err);
+  } finally { if (conn) conn.release(); }
 };
 
 exports.getMine = async (req, res) => {
@@ -98,20 +166,24 @@ exports.getHistory = async (req, res) => {
 
 exports.transfer = async (req, res) => {
   const { student_id, room_id } = req.body;
-  if (!(await canUse(req, student_id, room_id))) return res.status(403).json({ message: 'Not allowed for this student or room' });
-  const conn = await pool.getConnection();
+  let conn;
   try {
+    if (!(await canUse(req, student_id, room_id))) return res.status(403).json({ message: 'Not allowed for this student or room' });
+    conn = await pool.getConnection();
     await conn.beginTransaction();
     const [a] = await conn.query(
       "SELECT allocation_id, room_id FROM Allocation WHERE student_id = ? AND status = 'Active' FOR UPDATE", [student_id]);
     if (a.length === 0) { await conn.rollback(); return res.status(400).json({ message: 'Student has no active allocation' }); }
     if (String(a[0].room_id) === String(room_id)) { await conn.rollback(); return res.status(400).json({ message: 'Student is already in this room' }); }
-    await conn.query("UPDATE Allocation SET status = 'Vacated', checkout_date = CURDATE() WHERE allocation_id = ?", [a[0].allocation_id]);
-    await conn.query('INSERT INTO Allocation (student_id, room_id, allocation_date) VALUES (?, ?, CURDATE())', [student_id, room_id]);
+    await doVacate(conn, student_id);
+    await doAllocate(conn, student_id, room_id);
     await conn.commit();
     res.json({ message: 'Student transferred successfully' });
-  } catch (err) { await conn.rollback(); handleError(res, err); }
-  finally { conn.release(); }
+  } catch (err) {
+    if (conn) await conn.rollback();
+    if (err.isRule) return res.status(400).json({ message: err.message });
+    handleError(res, err);
+  } finally { if (conn) conn.release(); }
 };
 
 exports.remove = async (req, res) => {
