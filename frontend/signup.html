@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Sign Up</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="card login-box">
+    <h1>Sign Up</h1>
+    <select id="role" onchange="toggle()">
+      <option value="Student">Student</option>
+      <option value="Warden">Warden</option>
+      <option value="Admin">Admin</option>
+    </select>
+    <input id="name" placeholder="Full name">
+    <input id="email" placeholder="Email">
+    <input id="phone" placeholder="Mobile number ">
+    <input id="hostel_name" placeholder="Hostel name" style="display:none">
+<select id="hostel_type" style="display:none"><option value="Boys">Boys hostel</option><option value="Girls">Girls hostel</option></select>
+<input id="total_floors" type="number" min="1" placeholder="Total floors" style="display:none">
+    <input id="username" placeholder="Choose a username">
+    <input id="password" type="password" placeholder="Password (min 6 characters)">
+    <label style="font-size:14px"><input type="checkbox" onclick="document.getElementById('password').type = this.checked ? 'text' : 'password'"> Show password</label>
+    <input id="access_code" type="password" placeholder="Admin access code" style="display:none">
+    <button onclick="signup()">Create Account</button>
+    <p style="margin-top:12px">Already have an account? <a href="index.html">Login</a></p>
+    <div id="msg" class="msg"></div>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script>
+function toggle() {
+  const role = document.getElementById('role').value;
+  const show = (id, on) => document.getElementById(id).style.display = on ? 'block' : 'none';
+  show('hostel_name', role === 'Warden');
+  show('hostel_type', role === 'Warden');
+  show('total_floors', role === 'Warden');
+  show('access_code', role === 'Admin');
+}
+
+    async function signup() {
+      try {
+        const d = await apiCall('/auth/signup', 'POST', {
+          role: document.getElementById('role').value,
+          name: document.getElementById('name').value,
+          email: document.getElementById('email').value,
+          phone: document.getElementById('phone').value,
+          hostel_name: document.getElementById('hostel_name').value,
+hostel_type: document.getElementById('hostel_type').value,
+total_floors: document.getElementById('total_floors').value,
+          username: document.getElementById('username').value,
+          password: document.getElementById('password').value,
+          access_code: document.getElementById('access_code').value
+        });
+        showMsg('msg', d.message, true);
+        setTimeout(() => window.location.href = 'index.html', 1500);
+      } catch (err) { showMsg('msg', err.message, false); }
+    }
+  </script>
+</body>
+</html>

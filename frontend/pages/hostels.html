@@ -20,7 +20,7 @@
   </nav>
 
   <div class="container">
-    <div class="card">
+    <div class="card" id="cardAddWarden">
       <h2>Add Warden</h2>
       <input id="wname" placeholder="Warden name">
       <input id="wphone" placeholder="Phone">
@@ -29,12 +29,12 @@
       <div id="wmsg" class="msg"></div>
     </div>
 
-    <div class="card">
+    <div class="card" id="cardWardens">
       <h2>All Wardens</h2>
       <table id="wardenTable"></table>
     </div>
 
-    <div class="card">
+    <div class="card" id="cardAddHostel">
       <h2>Add Hostel</h2>
       <input id="hname" placeholder="Hostel name">
       <select id="htype"><option>Boys</option><option>Girls</option></select>
@@ -45,7 +45,7 @@
     </div>
 
     <div class="card">
-      <h2>All Hostels</h2>
+      <h2 id="hostelTitle">All Hostels</h2>
       <table id="hostelTable"></table>
     </div>
   </div>
@@ -53,33 +53,35 @@
   <script src="../js/api.js"></script>
   <script>
     requireLogin(['Admin', 'Warden']);
+    const isWarden = localStorage.getItem('role') === 'Warden';
+    if (isWarden) {
+      ['cardAddWarden', 'cardWardens', 'cardAddHostel'].forEach(id =>
+        document.getElementById(id).style.display = 'none');
+      document.getElementById('hostelTitle').textContent = 'My Hostel';
+    }
     let wardens = [], hostels = [];
 
     async function load() {
       try {
-        wardens = await apiCall('/wardens');
         hostels = await apiCall('/hostels');
+        document.getElementById('hostelTable').innerHTML =
+          '<tr><th>ID</th><th>Hostel</th><th>Type</th><th>Floors</th><th>Rooms</th><th>Beds</th><th>Occupied</th><th>Action</th></tr>' +
+          hostels.map(h => `<tr><td>${h.hostel_id}</td><td>${h.hostel_name}</td><td>${h.hostel_type}</td>
+            <td>${h.total_floors}</td><td>${h.total_rooms}</td><td>${h.total_beds}</td><td>${h.occupied_beds}</td>
+            <td><button onclick="editHostel(${h.hostel_id})">Edit</button>
+                ${isWarden ? '' : `<button class="danger" onclick="deleteHostel(${h.hostel_id})">Delete</button>`}</td></tr>`).join('');
 
+        if (isWarden) return;   // wardens do not need the warden list
+
+        wardens = await apiCall('/wardens');
         document.getElementById('hwarden').innerHTML =
           '<option value="">-- Select warden --</option>' +
           wardens.map(w => `<option value="${w.warden_id}">${w.name}</option>`).join('');
-
         document.getElementById('wardenTable').innerHTML =
           '<tr><th>ID</th><th>Name</th><th>Phone</th><th>Email</th><th>Action</th></tr>' +
           wardens.map(w => `<tr><td>${w.warden_id}</td><td>${w.name}</td><td>${w.phone}</td><td>${w.email}</td>
             <td><button onclick="editWarden(${w.warden_id})">Edit</button>
                 <button class="danger" onclick="deleteWarden(${w.warden_id})">Delete</button></td></tr>`).join('');
-
-        document.getElementById('hostelTable').innerHTML =
-          '<tr><th>ID</th><th>Hostel</th><th>Type</th><th>Floors</th><th>Warden</th><th>Rooms</th><th>Beds</th><th>Occupied</th><th>Action</th></tr>' +
-          hostels.map(h => {
-            const w = wardens.find(x => x.warden_id === h.warden_id);
-            return `<tr><td>${h.hostel_id}</td><td>${h.hostel_name}</td><td>${h.hostel_type}</td>
-              <td>${h.total_floors}</td><td>${w ? w.name : ''}</td>
-              <td>${h.total_rooms}</td><td>${h.total_beds}</td><td>${h.occupied_beds}</td>
-              <td><button onclick="editHostel(${h.hostel_id})">Edit</button>
-                  <button class="danger" onclick="deleteHostel(${h.hostel_id})">Delete</button></td></tr>`;
-          }).join('');
       } catch (err) { showMsg('hmsg', err.message, false); }
     }
 
@@ -135,12 +137,15 @@
       const h = hostels.find(x => x.hostel_id === id);
       const hostel_name = prompt('Hostel name:', h.hostel_name); if (hostel_name === null) return;
       const total_floors = prompt('Total floors:', h.total_floors); if (total_floors === null) return;
-      const list = wardens.map(w => w.warden_id + ' = ' + w.name).join('\n');
-      const warden_id = prompt('Warden ID:\n' + list, h.warden_id); if (warden_id === null) return;
+      let warden_id = h.warden_id;
+      if (!isWarden) {
+        const list = wardens.map(w => w.warden_id + ' = ' + w.name).join('\n');
+        warden_id = prompt('Warden ID:\n' + list, h.warden_id); if (warden_id === null) return;
+      }
       try {
         const d = await apiCall('/hostels/' + id, 'PUT', { hostel_name, total_floors, warden_id });
-        showMsg('hmsg', d.message, true); load();
-      } catch (err) { showMsg('hmsg', err.message, false); }
+        alert(d.message); load();
+      } catch (err) { alert(err.message); }
     }
 
     async function deleteHostel(id) {

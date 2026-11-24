@@ -10,7 +10,9 @@
     <h1>Hostel Login</h1>
     <input id="username" placeholder="Username">
     <input id="password" type="password" placeholder="Password">
+    <label style="font-size:14px"><input type="checkbox" onclick="document.getElementById('password').type = this.checked ? 'text' : 'password'"> Show password</label>
     <button onclick="login()">Login</button>
+    <p style="margin-top:12px">New user? <a href="signup.html">Sign up</a></p>
     <div id="msg" class="msg"></div>
   </div>
 

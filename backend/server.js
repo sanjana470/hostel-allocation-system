@@ -29,5 +29,7 @@ app.get('/api/me', verifyToken, allowRoles('Student'), require('./controllers/al
 app.use('/api/allocations', verifyToken, allowRoles('Admin', 'Warden'), require('./routes/allocationRoutes'));
 app.use('/api/payments',    verifyToken, allowRoles('Admin', 'Warden'), require('./routes/paymentRoutes'));
 app.use('/api/wardens',     verifyToken, allowRoles('Admin', 'Warden'), require('./routes/wardenRoutes'));
+const path = require('path');
+app.use(express.static(path.join(__dirname, '..', 'frontend')));
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));

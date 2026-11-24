@@ -1,4 +1,4 @@
-const API = 'http://localhost:5000/api';
+const API = '/api';
 
 async function apiCall(path, method = 'GET', body = null) {
   const headers = { 'Content-Type': 'application/json' };
@@ -21,13 +21,13 @@ async function apiCall(path, method = 'GET', body = null) {
 function requireLogin(allowedRoles) {
   const role = localStorage.getItem('role');
   if (!localStorage.getItem('token') || !allowedRoles.includes(role)) {
-    window.location.href = '/frontend/index.html';
+    window.location.href = '/index.html';
   }
 }
 
 function logout() {
   localStorage.clear();
-  window.location.href = '/frontend/index.html';
+  window.location.href = '/index.html';
 }
 
 function showMsg(id, text, ok) {

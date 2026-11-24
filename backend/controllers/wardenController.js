@@ -3,7 +3,10 @@ const handleError = require('../utils/handleError');
 
 exports.getAll = async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT * FROM Warden ORDER BY warden_id');
+    let sql = 'SELECT * FROM Warden';
+    const params = [];
+    if (req.user.role === 'Warden') { sql += ' WHERE warden_id = ?'; params.push(req.user.warden_id); }
+    const [rows] = await pool.query(sql + ' ORDER BY warden_id', params);
     res.json(rows);
   } catch (err) { handleError(res, err); }
 };
@@ -11,8 +14,7 @@ exports.getAll = async (req, res) => {
 exports.create = async (req, res) => {
   const { name, phone, email } = req.body;
   try {
-    const [result] = await pool.query(
-      'INSERT INTO Warden (name, phone, email) VALUES (?, ?, ?)', [name, phone, email]);
+    const [result] = await pool.query('INSERT INTO Warden (name, phone, email) VALUES (?, ?, ?)', [name, phone, email]);
     res.status(201).json({ message: 'Warden added', warden_id: result.insertId });
   } catch (err) { handleError(res, err); }
 };
@@ -20,8 +22,7 @@ exports.create = async (req, res) => {
 exports.update = async (req, res) => {
   const { name, phone, email } = req.body;
   try {
-    const [result] = await pool.query(
-      'UPDATE Warden SET name = ?, phone = ?, email = ? WHERE warden_id = ?',
+    const [result] = await pool.query('UPDATE Warden SET name = ?, phone = ?, email = ? WHERE warden_id = ?',
       [name, phone, email, req.params.id]);
     if (result.affectedRows === 0) return res.status(404).json({ message: 'Warden not found' });
     res.json({ message: 'Warden updated' });
