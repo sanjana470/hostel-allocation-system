@@ -8,9 +8,6 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-app.get('/', (req, res) => {
-  res.send('Hostel Allocation System API is running. Try /api/health');
-});
 
 app.get('/api/health', async (req, res) => {
   try {
